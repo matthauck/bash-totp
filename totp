@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+help() {
+  echo "Time-based One-time Password Generator"
+  echo
+  echo "USAGE: $0 <server> <key> [interval]"
+  echo
+  echo "The default update interval is 30 seconds."
+  echo
+  echo "Supported servers: Google, GitHub"
+  exit -1
+}
+
+TOTP_SERVER=$1
+TOTP_SECRET=$2
+TOTP_INTERVAL=${3:-30}
+
+if [[ -z "${TOTP_SERVER}" || -z "${TOTP_SECRET}" ]]; then
+  help
+fi
+
+if [[ ! "${TOTP_INTERVAL}" =~ ^[0-9]+$ ]]; then
+  echo "The update interval must be a non-negative integer: ${TOTP_INTERVAL}"
+  echo
+  help
+fi
+# Normalize
+TOTP_INTERVAL=$(printf %d "${TOTP_INTERVAL}")
+
+TOTP_PERIOD=$(( $(date +%s) / TOTP_INTERVAL ))
+
+gen_digest() {
+  local key=$1 period=$2
+  printf "$(printf %016X "${period}" | sed 's/../\\x\0/g')" |
+    openssl dgst -sha1 -mac HMAC -macopt "hexkey:${key}" |
+      cut -d\  -f2
+}
+
+gen_token() {
+  local server=$1 secret=$2 period=$3
+  case "${server}" in
+    Google | GitHub)
+      local key=$( echo "${secret}" | base32 -d | hexdump -ve '/1 "%02X"' )
+      # The digest is a 64-bit hexadecimal number string.
+      local digest=$( gen_digest "${key}" "${period}" )
+      # Read the last 4 bits and convert it into an unsigned integer.
+      local offset=$(( $(printf %d "0x${digest:39}") * 2 ))
+      # Read a 32-bit positive integer and take at most six rightmost digits.
+      local token=$(( ("0x${digest:offset:8}" & 0x7FFFFFFF) % 1000000 ))
+      # Pad the token number with leading zeros if needed.
+      printf '%06d\n' "${token}"
+      ;;
+    *)
+      echo "Your server is not supported: ${server}"
+      echo
+      help
+  esac
+}
+
+gen_token "${TOTP_SERVER}" "${TOTP_SECRET}" "${TOTP_PERIOD}"
