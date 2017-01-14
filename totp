@@ -7,7 +7,7 @@ help() {
   echo
   echo "The default update interval is 30 seconds."
   echo
-  echo "Supported servers: Google, GitHub"
+  echo "Supported servers: Google, GitHub, GitLab, Bitbucket"
   exit -1
 }
 
@@ -18,13 +18,15 @@ TOTP_INTERVAL=${3:-30}
 if [[ -z "${TOTP_SERVER}" || -z "${TOTP_SECRET}" ]]; then
   help
 fi
+TOTP_SERVER=$(echo "${TOTP_SERVER}" | tr A-Z a-z)
+TOTP_SECRET=$(echo "${TOTP_SECRET// /}" | tr a-z A-Z)
 
 if [[ ! "${TOTP_INTERVAL}" =~ ^[0-9]+$ ]]; then
   echo "The update interval must be a non-negative integer: ${TOTP_INTERVAL}"
   echo
   help
 fi
-# Normalize
+# Remove leading zeros.
 TOTP_INTERVAL=$(printf %d "${TOTP_INTERVAL}")
 
 TOTP_PERIOD=$(( $(date +%s) / TOTP_INTERVAL ))
@@ -39,7 +41,7 @@ gen_digest() {
 gen_token() {
   local server=$1 secret=$2 period=$3
   case "${server}" in
-    Google | GitHub)
+    google | github | gitlab | bitbucket)
       local key=$( echo "${secret}" | base32 -d | hexdump -ve '/1 "%02X"' )
       # The digest is a 64-bit hexadecimal number string.
       local digest=$( gen_digest "${key}" "${period}" )
