@@ -48,7 +48,7 @@ gen_token() {
       # Read the last 4 bits and convert it into an unsigned integer.
       local offset=$(( $(printf %d "0x${digest:39}") * 2 ))
       # Read a 32-bit positive integer and take at most six rightmost digits.
-      local token=$(( ("0x${digest:offset:8}" & 0x7FFFFFFF) % 1000000 ))
+      local token=$(( (0x${digest:offset:8} & 0x7FFFFFFF) % 1000000 ))
       # Pad the token number with leading zeros if needed.
       printf '%06d\n' "${token}"
       ;;
